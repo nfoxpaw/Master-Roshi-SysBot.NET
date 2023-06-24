@@ -4,11 +4,97 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
+using PKHeX.Core;
+using SysBot.Base;
 
 namespace SysBot.Pokemon.Discord
 {
-    public class SudoModule : ModuleBase<SocketCommandContext>
+    public class SudoModule<T> : ModuleBase<SocketCommandContext> where T : PKM, new()
     {
+        [Command("ledyspecies")]
+        [Alias("ls")]
+        [Summary("Changes the Ledy species for idle distribution.")]
+        [RequireSudo]
+        public async Task ChangeLedySpecies([Remainder] string input)
+        {
+            if (input.ToLower() == "none")
+            {
+                SysCordSettings.HubConfig.Distribution.LedySpecies = (ushort)Species.None;
+                await ReplyAsync("LedySpecies has been changed to None.").ConfigureAwait(false);
+                EchoUtil.Echo("LedySpecies has been changed to None.");
+                return;
+            }
+            bool isSpecies = Enum.TryParse(input, true, out Species result);
+            if (!isSpecies)
+            {
+                await ReplyAsync("Please enter a valid Species.").ConfigureAwait(false);
+                return;
+            }
+            var mode = typeof(T).ToString();
+            IPersonalTable infoTable = mode switch
+            {
+                "PK9" => PersonalTable.SV,
+                "PK8" => PersonalTable.SWSH,
+                "PA8" => PersonalTable.LA,
+                "PB8" => PersonalTable.BDSP,
+                _ => PersonalTable.SV
+            };
+            bool isInGame = infoTable.IsSpeciesInGame((ushort)result);
+            if (!isInGame)
+            {
+                await ReplyAsync("Please enter a Species available in the current game.").ConfigureAwait(false);
+                return;
+            }
+            else
+            {
+                SysCordSettings.HubConfig.Distribution.LedySpecies = result;
+                await ReplyAsync($"LedySpecies has been changed to {result}.").ConfigureAwait(false);
+                EchoUtil.Echo($"LedySpecies has been changed to {result}.");
+            }
+        }
+
+        /*[Command("metlocation")]
+        [Alias("ml")]
+        [Summary("Changes the required Met Location for TradeMon.")]
+        [RequireSudo]
+        public async Task ChangeMetLocation([Remainder] string input)
+        {
+            if (input.ToLower() == "none")
+            {
+                SysCordSettings.HubConfig.TradeAbuse.OfferedMetLocation = string.Empty;
+                await ReplyAsync("Met Location has been changed to None.").ConfigureAwait(false);
+                EchoUtil.Echo("Met Location has been changed to None.");
+                return;
+            }
+                        
+            else
+            {
+                SysCordSettings.HubConfig.TradeAbuse.OfferedMetLocation = input;
+                await ReplyAsync($"Met Location has been changed to {input}.").ConfigureAwait(false);
+                EchoUtil.Echo($"Met Location has been changed to {input}.");
+            }
+        }*/
+
+        [Command("cooldown")]
+        [Summary("Changes cooldown in minutes.")]
+        [Alias("cd")]
+        [RequireSudo]
+        public async Task UpdateCooldown([Remainder] string input)
+        {
+            bool res = uint.TryParse(input, out var cooldown);
+            if (res)
+            {
+                SysCordSettings.HubConfig.TradeAbuse.TradeCooldown = cooldown;
+                SysCordSettings.HubConfig.TradeAbuse.CooldownUpdate = $"{DateTime.Now:yyyy.MM.dd - HH:mm:ss}";
+                await ReplyAsync($"Cooldown has been updated to {cooldown} minutes.").ConfigureAwait(false);
+                return;
+            }
+            else
+            {
+                await ReplyAsync("Please enter a valid number of minutes.").ConfigureAwait(false);
+            }
+        }
+
         [Command("blacklist")]
         [Summary("Blacklists mentioned user.")]
         [RequireSudo]

@@ -1,4 +1,5 @@
 ﻿using PKHeX.Core;
+using SysBot.Base;
 using System.Collections.Generic;
 
 namespace SysBot.Pokemon
@@ -19,11 +20,26 @@ namespace SysBot.Pokemon
 
         private const Species NoMatchSpecies = Species.None;
 
-        public LedyResponse<T>? GetLedyTrade(T pk, ulong partnerId, Species speciesMatch = NoMatchSpecies)
+        public LedyResponse<T>? GetLedyTrade(T pk, ulong partnerId, Species speciesMatch = NoMatchSpecies, bool LedyVIP = false, bool NoEvo = false, bool NoRefunds = false/*, bool MetReqB = false*/)
         {
-            if (speciesMatch != NoMatchSpecies && pk.Species != (int)speciesMatch)
+            if (speciesMatch != NoMatchSpecies && pk.Species != (int)speciesMatch && LedyVIP == false)
                 return null;
 
+            if (NoRefunds == true && LedyVIP == false)
+            {
+                EchoUtil.Echo("No Refunds!");
+                return null;
+            }
+
+            if (NoEvo == true && LedyVIP == false)
+            {
+                EchoUtil.Echo("No Trade Evos!");
+                return null;
+            }
+
+            /*if (MetReqB == true && LedyVIP == false)            
+                return null;*/
+            
             var response = GetLedyResponse(pk);
             if (response is null)
                 return null;

@@ -10,6 +10,15 @@ namespace SysBot.Pokemon
         [Category(Monitoring), Description("When a person appears again in less than this setting's value (minutes), a notification will be sent.")]
         public double TradeCooldown { get; set; }
 
+        [Category(Monitoring), Description("Time cooldown last updated.")]
+        public string CooldownUpdate { get; set; } = "2023.04.15 - 00:00:00";
+
+        [Category(Monitoring), Description("When a person connects during cooldown consecutively, their NID is added to BannedIDs.")]
+        public bool AutoBanCooldown { get; set; } = false;
+
+        [Category(Monitoring), Description("Number of consecutive attempts to ban after.")]
+        public int RepeatConnections { get; set; } = 5;
+
         [Category(Monitoring), Description("When a person ignores a trade cooldown, the echo message will include their Nintendo Account ID.")]
         public bool EchoNintendoOnlineIDCooldown { get; set; } = true;
 
@@ -40,6 +49,12 @@ namespace SysBot.Pokemon
         [Category(Monitoring), Description("Banned online IDs that will trigger trade exit or in-game block.")]
         public RemoteControlAccessList BannedIDs { get; set; } = new();
 
+        [Category(Monitoring), Description("If not empty, the provided string will be appended to Echo alerts when a user has been added to the ban list.")]
+        public string AddBanReply { get; set; } = string.Empty;
+
+        [Category(Monitoring), Description("If not empty, the provided string will be appended to Echo alerts when a banned user attempts trade.")]
+        public string BannedUserReply { get; set; } = string.Empty;
+
         [Category(Monitoring), Description("When a person is encountered with a banned ID, block them in-game before quitting the trade.")]
         public bool BlockDetectedBannedUser { get; set; } = true;
 
@@ -51,5 +66,23 @@ namespace SysBot.Pokemon
 
         [Category(Monitoring), Description("If not empty, the provided string will be appended to Echo alerts to notify whomever you specify when a user violates Ledy trade rules. For Discord, use <@userIDnumber> to mention.")]
         public string LedyAbuseEchoMention { get; set; } = string.Empty;
+
+        [Category(Monitoring), Description("Distribution TID list for No Refunds script.")]
+        public RemoteControlAccessList DistributionTIDList { get; set; } = new();
+
+        [Category(Monitoring), Description("Distribution SID list for No Refunds script.")]
+        public RemoteControlAccessList DistributionSIDList { get; set; } = new();
+
+        [Category(Monitoring), Description("If not empty, the provided string will be appended to Echo alerts when a user attempts to return a Distribution mon.")]
+        public string NoRefundsReply { get; set; } = string.Empty;
+
+        [Category(Monitoring), Description("Preferred TrainerNIDs that will not trigger trade cooldown or ban tracking.")]
+        public RemoteControlAccessList CooldownWhitelist { get; set; } = new();
+
+        [Category(Monitoring), Description("List of Species blocked from trade.")]
+        public RemoteControlAccessList SpeciesBlockList { get; set; } = new();
+
+        /*[Category(Monitoring), Description("If not empty, the provided string will be used to specify a Met Location for Random Distribution TradeMon.")]
+        public string OfferedMetLocation { get; set; } = string.Empty;*/
     }
 }

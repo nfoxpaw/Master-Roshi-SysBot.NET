@@ -10,6 +10,7 @@ namespace SysBot.Pokemon.Discord
     public class PoolModule<T> : ModuleBase<SocketCommandContext> where T : PKM, new()
     {
         [Command("poolReload")]
+        [Alias("pr")]
         [Summary("Reloads the bot pool from the setting's folder.")]
         [RequireSudo]
         public async Task ReloadPoolAsync()
@@ -25,6 +26,7 @@ namespace SysBot.Pokemon.Discord
         }
 
         [Command("pool")]
+        [Alias("p")]
         [Summary("Displays the details of Pokémon files in the random pool.")]
         public async Task DisplayPoolCountAsync()
         {

@@ -160,7 +160,7 @@ namespace SysBot.Pokemon.Discord
             var attachment = Context.Message.Attachments.FirstOrDefault();
             if (attachment == default)
             {
-                await ReplyAsync("No attachment provided!").ConfigureAwait(false);
+                await ReplyAsync("You forgot the file. Attach a PKM next time!!!").ConfigureAwait(false);
                 return;
             }
 
@@ -191,14 +191,14 @@ namespace SysBot.Pokemon.Discord
         {
             if (!pk.CanBeTraded())
             {
-                await ReplyAsync("Provided Pokémon content is blocked from trading!").ConfigureAwait(false);
+                await ReplyAsync("Illegal Pokemon set! Fix it! https://tenor.com/view/dragon-ball-z-dragon-ball-master-roshi-dragon-ball-gif-5192943").ConfigureAwait(false);
                 return;
             }
 
             var la = new LegalityAnalysis(pk);
             if (!la.Valid)
             {
-                await ReplyAsync($"{typeof(T).Name} attachment is not legal, and cannot be traded!").ConfigureAwait(false);
+                await ReplyAsync($"That {typeof(T).Name} is illegal! Fix it! https://tenor.com/view/dragon-ball-z-dragon-ball-master-roshi-dragon-ball-gif-5192943").ConfigureAwait(false);
                 return;
             }
 

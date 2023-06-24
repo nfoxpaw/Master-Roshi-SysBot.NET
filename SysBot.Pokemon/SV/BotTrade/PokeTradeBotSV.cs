@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using static SysBot.Base.SwitchButton;
 using static SysBot.Pokemon.PokeDataOffsetsSV;
+using System.Collections.Generic;
 
 namespace SysBot.Pokemon
 {
@@ -23,6 +24,7 @@ namespace SysBot.Pokemon
         private static readonly TrackedUserLog PreviousUsers = new();
         private static readonly TrackedUserLog PreviousUsersDistribution = new();
         private static readonly TrackedUserLog EncounteredUsers = new();
+        private static readonly CooldownTracker UserCooldowns = new();
 
         /// <summary>
         /// Folder to dump received trade data to.
@@ -338,9 +340,11 @@ namespace SysBot.Pokemon
             await Task.Delay(3_000 + Hub.Config.Timings.ExtraTimeOpenBox, token).ConfigureAwait(false);
 
             var tradePartner = await GetTradePartnerInfo(token).ConfigureAwait(false);
-            var trainerNID = await GetTradePartnerNID(TradePartnerNIDOffset, token).ConfigureAwait(false);
+            var trainerNID = await GetTradePartnerNID(TradePartnerNIDOffset, token).ConfigureAwait(false);                        
             RecordUtil<PokeTradeBot>.Record($"Initiating\t{trainerNID:X16}\t{tradePartner.TrainerName}\t{poke.Trainer.TrainerName}\t{poke.Trainer.ID}\t{poke.ID}\t{toSend.EncryptionConstant:X8}");
-            Log($"Found Link Trade partner: {tradePartner.TrainerName}-{tradePartner.TID7} (ID: {trainerNID})");
+            //Log Trainer info block
+            var msgZ = $"```OT: {tradePartner.TrainerName}\rTID: {tradePartner.TID7}\rSID: {tradePartner.SID7}\rOTGender: {(Gender)tradePartner.Gender}\rLanguage: {(LanguageID)tradePartner.Language}\rGame: {(GameVersion)tradePartner.Game}\rNID: {trainerNID}```";
+            Log($"Found Link Trade partner: {tradePartner.TrainerName}-{tradePartner.TID7} (ID: {trainerNID})\r{msgZ}");
 
             var partnerCheck = CheckPartnerReputation(poke, trainerNID, tradePartner.TrainerName);
             if (partnerCheck != PokeTradeResult.Success)
@@ -349,6 +353,13 @@ namespace SysBot.Pokemon
                 await ExitTradeToPortal(false, token).ConfigureAwait(false);
                 return partnerCheck;
             }
+
+            bool isDistribution = false;
+            if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.Clone)
+                isDistribution = true;
+
+            var list = isDistribution ? PreviousUsersDistribution : PreviousUsers;
+            var listCool = UserCooldowns;
 
             // Hard check to verify that the offset changed from the last thing offered from the previous trade.
             // This is because box opening times can vary per person, the offset persists between trades, and can also change offset between trades.
@@ -374,6 +385,12 @@ namespace SysBot.Pokemon
             if (offered == null || offered.Species < 1 || !offered.ChecksumValid)
             {
                 Log("Trade ended because a valid Pokémon was not offered.");
+                var VIP2 = AbuseSettings.CooldownWhitelist.List.Find(z => z.ID == trainerNID);
+                if (VIP2 == null)
+                {
+                    list.TryRegister(trainerNID, tradePartner.TrainerName);
+                    _ = listCool.TryInsert(trainerNID, tradePartner.TrainerName, true);
+                }
                 await ExitTradeToPortal(false, token).ConfigureAwait(false);
                 return PokeTradeResult.TrainerTooSlow;
             }
@@ -423,6 +440,13 @@ namespace SysBot.Pokemon
             // Sometimes they offered another mon, so store that immediately upon leaving Union Room.
             lastOffered = await SwitchConnection.ReadBytesAbsoluteAsync(TradePartnerOfferedOffset, 8, token).ConfigureAwait(false);
 
+            var VIP = AbuseSettings.CooldownWhitelist.List.Find(z => z.ID == trainerNID);
+            if (VIP == null)
+            {
+                list.TryRegister(trainerNID, tradePartner.TrainerName);
+                _ = listCool.TryInsert(trainerNID, tradePartner.TrainerName, true);
+            }
+
             await ExitTradeToPortal(false, token).ConfigureAwait(false);
             return PokeTradeResult.Success;
         }
@@ -430,7 +454,7 @@ namespace SysBot.Pokemon
         private void UpdateCountsAndExport(PokeTradeDetail<PK9> poke, PK9 received, PK9 toSend)
         {
             var counts = TradeSettings;
-            if (poke.Type == PokeTradeType.Random)
+            if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.LinkSV)
                 counts.AddCompletedDistribution();
             else if (poke.Type == PokeTradeType.Clone)
                 counts.AddCompletedClones();
@@ -817,6 +841,7 @@ namespace SysBot.Pokemon
             {
                 PokeTradeType.Random => await HandleRandomLedy(sav, poke, offered, toSend, partnerID, token).ConfigureAwait(false),
                 PokeTradeType.Clone => await HandleClone(sav, poke, offered, oldEC, token).ConfigureAwait(false),
+                PokeTradeType.LinkSV => await HandleRandomLedy(sav, poke, offered, toSend, partnerID, token).ConfigureAwait(false),
                 _ => (toSend, PokeTradeResult.Success),
             };
         }
@@ -837,6 +862,20 @@ namespace SysBot.Pokemon
                 Log(report);
                 poke.SendNotification(this, "This Pokémon is not legal per PKHeX's legality checks. I am forbidden from cloning this. Exiting trade.");
                 poke.SendNotification(this, report);
+
+                return (offered, PokeTradeResult.IllegalTrade);
+            }
+
+            if (offered.EncryptionConstant == 00000000)
+            {
+                var ecalert = ($"Clone request (from {poke.Trainer.TrainerName}) has detected an invalid Pokémon with 0EC: {GameInfo.GetStrings(1).Species[offered.Species]}.");
+                
+                if (DumpSetting.Dump)
+                    DumpPokemon(DumpSetting.DumpFolder, "hacked", offered);
+
+                Log(ecalert);
+                EchoUtil.Echo(ecalert);
+                poke.SendNotification(this, "This Pokémon has an Encryption Constant of 0. I am forbidden from cloning this. Exiting trade.");
 
                 return (offered, PokeTradeResult.IllegalTrade);
             }
@@ -874,7 +913,61 @@ namespace SysBot.Pokemon
         {
             // Allow the trade partner to do a Ledy swap.
             var config = Hub.Config.Distribution;
-            var trade = Hub.Ledy.GetLedyTrade(offered, partner.TrainerOnlineID, config.LedySpecies);
+            var trainerNID = await GetTradePartnerNID(TradePartnerNIDOffset, token).ConfigureAwait(false);
+            var VIP = AbuseSettings.CooldownWhitelist.List.Find(z => z.ID == trainerNID);
+            var OTID = offered.TID16;
+            var OSID = offered.SID16;
+            var SPEX = offered.Species;
+            /*int METX = offered.Met_Location;
+            int METY = System.Convert.ToInt32(AbuseSettings.OfferedMetLocation);*/
+            var DistroTID = AbuseSettings.DistributionTIDList.List.Find(z => z.ID == OTID);
+            var DistroSID = AbuseSettings.DistributionSIDList.List.Find(z => z.ID == OSID);
+            var Evo = AbuseSettings.SpeciesBlockList.List.Find(z => z.ID == SPEX);
+
+
+            bool LedyVIP = false;
+            bool NoEvo = false;
+            bool NoRefunds = false;
+            /*bool MetReqB = false;*/
+
+            if (VIP != null)
+                LedyVIP = true;
+
+            //Trade Evo Rejection
+            if (Evo != null)
+                NoEvo = true;
+            if (offered.Species == 093 && offered.HeldItem != 229)
+                NoEvo = true;
+            if (offered.Species == 079 && offered.HeldItem == 221)
+                NoEvo = true;
+            if (offered.Species == 123 && offered.HeldItem == 233)
+                NoEvo = true;
+            if (offered.Species == (ushort)Species.Kadabra || offered.Species == (ushort)Species.Machoke || offered.Species == (ushort)Species.Gurdurr || offered.Species == (ushort)Species.Graveler || offered.Species == (ushort)Species.Phantump || offered.Species == (ushort)Species.Pumpkaboo || offered.Species == (ushort)Species.Boldore)
+                NoEvo = true;
+
+            if (DistroTID != null && DistroSID != null && LedyVIP == false)
+                NoRefunds = true;
+            /*if (!string.IsNullOrWhiteSpace(AbuseSettings.OfferedMetLocation) && (METX != METY) && LedyVIP == false)
+                MetReqB = true;*/
+                        
+            if (NoRefunds == true)
+            {
+                if (!string.IsNullOrWhiteSpace(AbuseSettings.NoRefundsReply))
+                    EchoUtil.Echo(AbuseSettings.NoRefundsReply);
+            }
+
+            if (offered.EncryptionConstant == 00000000)
+            {
+                EchoUtil.Echo("0EC Mon detected.");
+            }
+
+            /*if (MetReqB  == true)
+            {
+                EchoUtil.Echo("Met Location mismatch.");
+            }*/
+
+
+                var trade = Hub.Ledy.GetLedyTrade(offered, partner.TrainerOnlineID, config.LedySpecies, LedyVIP, NoEvo, NoRefunds/*, MetReqB*/);
             if (trade != null)
             {
                 if (trade.Type == LedyResponseType.AbuseDetected)
@@ -897,6 +990,21 @@ namespace SysBot.Pokemon
             }
             else if (config.LedyQuitIfNoMatch)
             {
+                bool isDistribution = false;
+                if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.Clone)
+                    isDistribution = true;
+                var list = isDistribution ? PreviousUsersDistribution : PreviousUsers;
+                var listCool = UserCooldowns;
+                var tradePartner = await GetTradePartnerInfo(token).ConfigureAwait(false);
+                if (VIP == null)
+                {
+                    list.TryRegister(trainerNID, tradePartner.TrainerName);
+                    _ = listCool.TryInsert(trainerNID, tradePartner.TrainerName, true);
+                }
+                DumpPokemon(DumpSetting.DumpFolder, "rejects", offered); //Dump copy of failed request
+                var msgx = $"Bad Request found from {partner.TrainerName}: {GameInfo.GetStrings(1).Species[offered.Species]} nicknamed {offered.Nickname}";
+                Log(msgx);
+                EchoUtil.Echo(msgx);
                 return (toSend, PokeTradeResult.TrainerRequestBad);
             }
 
@@ -957,27 +1065,51 @@ namespace SysBot.Pokemon
             var isDistribution = poke.Type == PokeTradeType.Random;
             var useridmsg = isDistribution ? "" : $" ({user.ID})";
             var list = isDistribution ? PreviousUsersDistribution : PreviousUsers;
+            int attempts;
+            var listCool = UserCooldowns;
 
             var cooldown = list.TryGetPrevious(TrainerNID);
             if (cooldown != null)
             {
                 var delta = DateTime.Now - cooldown.Time;
-                Log($"Last saw {user.TrainerName} {delta.TotalMinutes:F1} minutes ago (OT: {TrainerName}).");
+                var coolDelta = DateTime.Now - DateTime.ParseExact(AbuseSettings.CooldownUpdate, "yyyy.MM.dd - HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+                Log($"Distribution: Last saw {TrainerNID} {delta.TotalMinutes:F1} minutes ago (OT: {TrainerName}).");
 
-                var cd = AbuseSettings.TradeCooldown;
-                if (cd != 0 && TimeSpan.FromMinutes(cd) > delta)
+                list.TryRegister(TrainerNID, TrainerName);
+
+                var VIP = AbuseSettings.CooldownWhitelist.List.Find(z => z.ID == TrainerNID);
+                if (VIP == null)
                 {
-                    poke.Notifier.SendNotification(this, poke, "You have ignored the trade cooldown set by the bot owner. The owner has been notified.");
-                    var msg = $"Found {user.TrainerName}{useridmsg} ignoring the {cd} minute trade cooldown. Last encountered {delta.TotalMinutes:F1} minutes ago.";
-                    if (AbuseSettings.EchoNintendoOnlineIDCooldown)
-                        msg += $"\nID: {TrainerNID}";
-                    if (!string.IsNullOrWhiteSpace(AbuseSettings.CooldownAbuseEchoMention))
-                        msg = $"{AbuseSettings.CooldownAbuseEchoMention} {msg}";
-                    EchoUtil.Echo(msg);
-                    quit = true;
-                }
+                    var cd = AbuseSettings.TradeCooldown;
+                    if (cd != 0 && TimeSpan.FromMinutes(cd) > delta)
+                    {
+                        list.TryRegister(TrainerNID, TrainerName);
+                        poke.Notifier.SendNotification(this, poke, "You have ignored the trade cooldown set by the bot owner. The owner has been notified.");
+                        var msg = $"Found user {TrainerName}{useridmsg} ignoring the {cd} minute trade cooldown. Last encountered {delta.TotalMinutes:F1} minutes ago.";
+                        if (AbuseSettings.EchoNintendoOnlineIDCooldown)
+                            msg += $"\nID: {TrainerNID}";
+                        if (!string.IsNullOrWhiteSpace(AbuseSettings.CooldownAbuseEchoMention))
+                            msg = $"{AbuseSettings.CooldownAbuseEchoMention} {msg}";
+                        EchoUtil.Echo(msg);
+                        if (AbuseSettings.AutoBanCooldown && TimeSpan.FromMinutes(60) < coolDelta)
+                        {
+                            attempts = listCool.TryInsert(TrainerNID, TrainerName);
+                            Log($"Connection during cooldown number {attempts} for {TrainerName}.");
+                            if (attempts >= AbuseSettings.RepeatConnections)
+                            {
+                                AbuseSettings.BannedIDs.AddIfNew(new[] { GetReference(TrainerName, TrainerNID, "Cooldown Abuse Ban") });
+                                var msg2 = $"Added {TrainerName}-{TrainerNID} to the BannedIDs list for cooldown abuse.";
+                                Log(msg2);
+                                EchoUtil.Echo(msg2);
+                                if (!string.IsNullOrWhiteSpace(AbuseSettings.AddBanReply))
+                                    EchoUtil.Echo(AbuseSettings.AddBanReply);
+                            }
+                        }
+                        quit = true;
+                    }
+                }            
             }
-
+            /*
             if (!isDistribution)
             {
                 var previousEncounter = EncounteredUsers.TryRegister(poke.Trainer.ID, TrainerName, poke.Trainer.ID);
@@ -1001,7 +1133,7 @@ namespace SysBot.Pokemon
                     EchoUtil.Echo(msg);
                 }
             }
-
+            */
             if (quit)
                 return PokeTradeResult.SuspiciousActivity;
 
@@ -1010,7 +1142,7 @@ namespace SysBot.Pokemon
             var previous = isDistribution
                 ? list.TryRegister(TrainerNID, TrainerName)
                 : list.TryRegister(TrainerNID, TrainerName, poke.Trainer.ID);
-            if (previous != null && previous.NetworkID == TrainerNID && previous.RemoteID != user.ID && !isDistribution)
+            /*if (previous != null && previous.NetworkID == TrainerNID && previous.RemoteID != user.ID && !isDistribution)
             {
                 var delta = DateTime.Now - previous.Time;
                 if (delta < TimeSpan.FromMinutes(AbuseSettings.TradeAbuseExpiration) && AbuseSettings.TradeAbuseAction != TradeAbuseAction.Ignore)
@@ -1029,7 +1161,7 @@ namespace SysBot.Pokemon
                 if (!string.IsNullOrWhiteSpace(AbuseSettings.MultiAbuseEchoMention))
                     msg = $"{AbuseSettings.MultiAbuseEchoMention} {msg}";
                 EchoUtil.Echo(msg);
-            }
+            }*/
 
             if (quit)
                 return PokeTradeResult.SuspiciousActivity;
@@ -1037,12 +1169,14 @@ namespace SysBot.Pokemon
             var entry = AbuseSettings.BannedIDs.List.Find(z => z.ID == TrainerNID);
             if (entry != null)
             {
-                var msg = $"{user.TrainerName}{useridmsg} is a banned user, and was encountered in-game using OT: {TrainerName}.";
+                var msg = $"{TrainerNID}{useridmsg} is a banned user, and was encountered in-game using OT: {TrainerName}.";
                 if (!string.IsNullOrWhiteSpace(entry.Comment))
                     msg += $"\nUser was banned for: {entry.Comment}";
                 if (!string.IsNullOrWhiteSpace(AbuseSettings.BannedIDMatchEchoMention))
                     msg = $"{AbuseSettings.BannedIDMatchEchoMention} {msg}";
                 EchoUtil.Echo(msg);
+                if (!string.IsNullOrWhiteSpace(AbuseSettings.BannedUserReply))
+                    EchoUtil.Echo(AbuseSettings.BannedUserReply);
                 return PokeTradeResult.SuspiciousActivity;
             }
 
