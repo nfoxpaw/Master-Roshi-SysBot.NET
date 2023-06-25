@@ -343,6 +343,7 @@ namespace SysBot.Pokemon
             var trainerNID = await GetTradePartnerNID(TradePartnerNIDOffset, token).ConfigureAwait(false);                        
             RecordUtil<PokeTradeBot>.Record($"Initiating\t{trainerNID:X16}\t{tradePartner.TrainerName}\t{poke.Trainer.TrainerName}\t{poke.Trainer.ID}\t{poke.ID}\t{toSend.EncryptionConstant:X8}");
             //Log Trainer info block
+            var msgY = $"```OT: {tradePartner.TrainerName}\rTID: {tradePartner.TID7}\rSID: {tradePartner.SID7}\rOTGender: {(Gender)tradePartner.Gender}```";
             var msgZ = $"```OT: {tradePartner.TrainerName}\rTID: {tradePartner.TID7}\rSID: {tradePartner.SID7}\rOTGender: {(Gender)tradePartner.Gender}\rLanguage: {(LanguageID)tradePartner.Language}\rGame: {(GameVersion)tradePartner.Game}\rNID: {trainerNID}```";
             Log($"Found Link Trade partner: {tradePartner.TrainerName}-{tradePartner.TID7} (ID: {trainerNID})\r{msgZ}");
 
@@ -370,7 +371,11 @@ namespace SysBot.Pokemon
                 return PokeTradeResult.TrainerTooSlow;
             }
 
-            poke.SendNotification(this, $"Found Link Trade partner: {tradePartner.TrainerName}. Waiting for a Pokémon...");
+            if (poke.Type != PokeTradeType.Random)
+            {
+                poke.SendNotification(this, $"Found Link Trade partner: {tradePartner.TrainerName}. Waiting for a Pokémon...\r\rHere are your Trainer details!\r{msgY}");
+            }
+            else poke.SendNotification(this, $"Found Link Trade partner: {tradePartner.TrainerName}. Waiting for a Pokémon...");
 
             if (poke.Type == PokeTradeType.Dump)
             {
