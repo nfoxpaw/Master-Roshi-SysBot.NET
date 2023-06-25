@@ -93,8 +93,6 @@ namespace SysBot.Pokemon
         [Category(Operation), Description("Bot can reply with a ShowdownSet in Any channel the bot can see, instead of only channels the bot has been whitelisted to run in. Only make this true if you want the bot to serve more utility in non-bot channels.")]
         public bool ConvertPKMReplyAnyChannel { get; set; }
 
-        [Category(UserInteraction), Description("Sets response for this reply module.")]
-        public string BulmaModule { get; set; } = string.Empty;
               
 
 
