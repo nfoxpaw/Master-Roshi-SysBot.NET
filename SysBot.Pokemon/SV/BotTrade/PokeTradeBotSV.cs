@@ -409,6 +409,11 @@ namespace SysBot.Pokemon
                 return update;
             }
 
+            if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.LinkSV)
+            {
+                Log($"Trainer request is nicknamed {offered.Nickname}.");
+            }
+
             Log("Confirming trade.");
             var tradeResult = await ConfirmAndStartTrading(poke, token).ConfigureAwait(false);
             if (tradeResult != PokeTradeResult.Success)

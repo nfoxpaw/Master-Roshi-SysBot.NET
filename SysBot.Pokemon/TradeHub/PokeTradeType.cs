@@ -7,6 +7,8 @@
         Seed,
         Clone,
         Dump,
-        LinkSV
+        LinkSV,
+        LinkLA,
+        LinkSWSH
     }
 }
