@@ -411,7 +411,7 @@ namespace SysBot.Pokemon
 
             if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.LinkSV)
             {
-                Log($"Trainer request is nicknamed {offered.Nickname}.");
+                Log($"Trainer request is nicknamed {offered.Nickname} ({GameInfo.GetStrings(1).Species[toSend.Species]}).");
             }
 
             Log("Confirming trade.");
@@ -491,6 +491,12 @@ namespace SysBot.Pokemon
                 if (await IsUserBeingShifty(detail, token).ConfigureAwait(false))
                     return PokeTradeResult.SuspiciousActivity;
                 await Click(A, 1_000, token).ConfigureAwait(false);
+
+
+                // We can fall out of the box if the user offers, then quits.
+                if (!await IsInBox(PortalOffset, token).ConfigureAwait(false))
+                    return PokeTradeResult.TrainerLeft;
+
 
                 // EC is detectable at the start of the animation.
                 var newEC = await SwitchConnection.ReadBytesAbsoluteAsync(BoxStartOffset, 8, token).ConfigureAwait(false);

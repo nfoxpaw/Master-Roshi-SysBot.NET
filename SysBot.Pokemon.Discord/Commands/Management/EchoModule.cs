@@ -35,7 +35,7 @@ namespace SysBot.Pokemon.Discord
                     AddEchoChannel(c, ch.ID);
             }
 
-            EchoUtil.Echo("Added echo notification to Discord channel(s) on Bot startup.");
+            EchoUtil.Echo("https://tenor.com/view/wake-up-im-sleep-sleepy-just-woke-up-gif-14389270");
         }
 
         [Command("echoHere")]

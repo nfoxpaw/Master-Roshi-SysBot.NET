@@ -72,7 +72,7 @@ namespace SysBot.Pokemon
 
         // Misc
 
-        [Category(Misc), Description("Zero out HOME tracker regardless of current tracker value. Applies to user requested PKM files as well.")]
-        public bool ResetHOMETracker { get; set; } = true;
+        [Category(Misc), Description("Zero out HOME tracker regardless of current tracker value. trackers for cloned and user-requested PKM files. It is recommended to leave this disabled to avoid creating invalid HOME data.")]
+        public bool ResetHOMETracker { get; set; } = false;
     }
 }
