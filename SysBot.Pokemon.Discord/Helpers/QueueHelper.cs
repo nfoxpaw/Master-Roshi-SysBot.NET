@@ -1,8 +1,9 @@
 ﻿using Discord;
 using Discord.Commands;
-using Discord.WebSocket;
 using Discord.Net;
+using Discord.WebSocket;
 using PKHeX.Core;
+using System;
 using System.Threading.Tasks;
 
 namespace SysBot.Pokemon.Discord
@@ -21,14 +22,234 @@ namespace SysBot.Pokemon.Discord
 
             try
             {
-                const string helper = "I've added you to the queue! I'll message you here when your trade is starting.";
+                const string helper = "Added you to the queue!\r\nBegin search once I tell you to.";
                 IUserMessage test = await trader.SendMessageAsync(helper).ConfigureAwait(false);
 
                 // Try adding
                 var result = AddToTradeQueue(context, trade, code, trainer, sig, routine, type, trader, out var msg);
 
                 // Notify in channel
-                await context.Channel.SendMessageAsync(msg).ConfigureAwait(false);
+                // await context.Channel.SendMessageAsync(msg).ConfigureAwait(false); 
+
+                string embedMsg, embedTitle, embedAuthor;
+                bool CanGMax = false;
+                uint FormArgument = 0;
+                var me = SysCord<T>.Runner;
+                string botversion = "";
+
+                if (me is not null)
+                    botversion = me.ToString()!.Substring(46, 3);
+                var gamever = botversion switch
+                {
+                    "PK9" => "Scarlet & Violet",
+                    "PK8" => "Sword & Shield",
+                    "PA8" => "Legends Arceus",
+                    "PB8" => "Brilliant Diamond & Shining Pearl",
+                    _ => "Let's Go Pikachu & Eevee",
+                };
+
+                switch (trade.Generation)
+                {
+                    case (int)GameVersion.X or (int)GameVersion.Y:
+                        PK6 mon6 = (PK6)trade.Clone();
+                        FormArgument = mon6.FormArgument;
+                        break;
+                    case (int)GameVersion.SN or (int)GameVersion.MN or (int)GameVersion.US or (int)GameVersion.UM:
+                        PK7 mon7 = (PK7)trade.Clone();
+                        FormArgument = mon7.FormArgument;
+                        break;
+                    case (int)GameVersion.GP or (int)GameVersion.GE:
+                        PB7 monLGPE = (PB7)trade.Clone();
+                        FormArgument = monLGPE.FormArgument;
+                        break;
+                    case (int)GameVersion.SW or (int)GameVersion.SH:
+                        PK8 mon8 = (PK8)trade.Clone();
+                        CanGMax = mon8.CanGigantamax;
+                        FormArgument = mon8.FormArgument;
+                        break;
+                    case (int)GameVersion.BD or (int)GameVersion.SP:
+                        PB8 monBDSP = (PB8)trade.Clone();
+                        CanGMax = monBDSP.CanGigantamax;
+                        FormArgument = monBDSP.FormArgument;
+                        break;
+                    case (int)GameVersion.PLA:
+                        PA8 monLA = (PA8)trade.Clone();
+                        CanGMax = monLA.CanGigantamax;
+                        FormArgument = monLA.FormArgument;
+                        break;
+                    case (int)GameVersion.SL or (int)GameVersion.VL:
+                        PK9 mon9 = (PK9)trade.Clone();
+                        FormArgument = mon9.FormArgument;
+                        break;
+                }
+                if (routine == PokeRoutineType.Clone || routine == PokeRoutineType.Dump || routine == PokeRoutineType.DirectTrade || routine == PokeRoutineType.SeedCheck)
+                {
+                    var cd = SysCordSettings.HubConfig.TradeAbuse.TradeCooldown;
+                    var p = SysCordSettings.Settings.CommandPrefix;
+
+                    Color embedMsgColor = new();
+                    embedTitle = $"Search once bot DMs you Initializing trade\n";
+                    if (context.User.GlobalName == null)
+                        embedAuthor = $"{context.User.Username}'s ";
+                    else
+                        embedAuthor = $"{context.User.GlobalName}'s ";
+                    embedMsg = $"";
+
+                    Random luck = new();
+                    int lucky = luck.Next(0, 10);
+
+                    if (routine == PokeRoutineType.SeedCheck)
+                    {
+                        embedMsgColor = 0xF9F815;
+                        embedAuthor += "Seed Check";
+                        embedMsg += $"Current Game: **{gamever}**\n";
+                        embedMsg += $"Show a Pokémon caught from a raid to check seed\n";
+                        embedMsg += $"This function only works on SWSH\n\n";
+                        embedMsg += $"Enjoy & Please come again !";
+                    }
+                    else if (routine == PokeRoutineType.Clone)
+                    {
+                        embedMsgColor = 0xF9F815;
+                        embedAuthor += "Clone Request";
+                        embedMsg += $"Current Game: **{gamever}**\n";
+                        embedMsg += $"Show a Pokémon to be cloned & Hit B to change your offer\n";
+                        embedMsg += $"Offer a trash Pokémon to receive your clone\n\n";
+                        embedMsg += $"Current Cooldown: **{cd}** mins\n";
+                        embedMsg += $"Enjoy & Please come again !";
+                    }
+                    else if (routine == PokeRoutineType.Dump)
+                    {
+                        embedMsgColor = 0x6015F9;
+                        embedAuthor += "Dump Request";
+                        embedMsg += $"Current Game: **{gamever}**\n";
+                        embedMsg += $"Show Pokémon(s) to be dumped\n";
+                        embedMsg += $"For **{SysCordSettings.HubConfig.Trade.MaxDumpTradeTime}** seconds, show up to **{SysCordSettings.HubConfig.Trade.MaxDumpsPerTrade}** Pokémon\n\n";
+                        embedMsg += $"Current Cooldown: **{cd}** mins\n";
+                        embedMsg += $"Enjoy & Please come again !";
+                    }
+                    else if (routine == PokeRoutineType.DirectTrade)
+                    {
+                        
+                        if (type == PokeTradeType.LinkSV || type == PokeTradeType.LinkSWSH || type == PokeTradeType.LinkLA)
+                        {
+                            embedAuthor += "Direct Trade Request";
+                            embedMsg += $"Nickname/Features trade using [**Click for Nicknames**](<{SysCordSettings.HubConfig.Distribution.SheetLink}>)\n";
+                            embedMsg += $"Game: **{gamever}**\n";
+                            embedMsg += $"Cooldown: **{cd}** mins\n\n";
+                            embedMsg += $"Commands:\n**{p}rsv**, **{p}rme**, **{p}t**, **{p}it**, **{p}tc**, **{p}dump**, **{p}clone**, **{p}checkcd**, **{p}dtl**, **{p}spf**\n";
+                            embedMsg += $"Enjoy trading !";
+                        }
+                    }
+                    var icon = context.User.GetAvatarUrl() switch
+                    {
+                        null => context.User.GetDefaultAvatarUrl(),
+                        _ => context.User.GetAvatarUrl(),
+                    };
+                    EmbedAuthorBuilder embedAuthorBuild = new()
+                    {
+                        IconUrl = icon,
+                        Name = embedAuthor,
+                    };
+                    EmbedFooterBuilder embedFtr = new()
+                    {
+                        Text = $"Current Position: " + SysCord<T>.Runner.Hub.Queues.Info.Count.ToString() + ".\nEstimated Wait: " + Math.Round(((SysCord<T>.Runner.Hub.Queues.Info.Count) * 1.65), 1).ToString() + " minutes.",
+                        IconUrl = "https://cdn.discordapp.com/emojis/1132202155789537280.webp?size=128&quality=lossless"
+                    };
+
+                    Roshicl traderoshi = new();
+                    string embedThumbUrl = "https://images-ext-1.discordapp.net/external/QvIHlXFAFbgPEyZkFkPOW_TlSliYS_ZICoyibAuWmSE/https/m.media-amazon.com/images/I/81SFFfP%2BlWL.jpg?width=468&height=662";
+
+                    EmbedBuilder builder = new()
+                    {
+                        Color = embedMsgColor,
+                        Author = embedAuthorBuild,
+                        Title = embedTitle,
+                        Description = embedMsg,
+                        ThumbnailUrl = embedThumbUrl,
+                        Footer = embedFtr
+                    };
+                    await context.Channel.SendMessageAsync("", false, builder.Build()).ConfigureAwait(false);
+                }
+                else
+                {
+                    var list = FormConverter.GetFormList(trade.Species, GameInfo.Strings.types, GameInfo.Strings.forms, GameInfo.GenderSymbolASCII, trade.Context);
+                    string HeldItem = Roshicl.FixHeldItemName(((EmbedItem)trade.HeldItem).ToString());
+                    embedTitle = trade.IsShiny ? ":sparkles:" : "";
+                    if (trade.Form != 0)
+                        embedTitle += $"{list[trade.Form]} {(Species)trade.Species}";
+                    else
+                        embedTitle += $"{(Species)trade.Species}";
+                    if (trade.Gender == 0)
+                        embedTitle += " (M)";
+                    else if (trade.Gender == 1)
+                        embedTitle += " (F)";
+                    if (trade.HeldItem > 0)
+                        embedTitle += $" **➜** {HeldItem}";
+                    if(context.User.GlobalName == null)
+                        embedAuthor = $"{context.User.Username}'s ";
+                    else
+                        embedAuthor = $"{context.User.GlobalName}'s ";
+                    embedAuthor += trade.IsShiny ? "Shiny " : "";
+                    embedAuthor += "Pokémon:";
+
+                    embedMsg = $"**Ability**: {(Ability)trade.Ability}";
+                    embedMsg += $"\n**Level**: {trade.CurrentLevel}";
+                    if (gamever == "SV")
+                    {
+                        PK9 tradesv = (PK9)(PKM)trade;
+                        embedMsg += $"\n**Tera**: {tradesv.TeraType}";
+                    }
+                    embedMsg += $"\n**Nature**: {(Nature)trade.Nature}";
+                    embedMsg += $"\n**IVs**: {trade.IV_HP}/{trade.IV_ATK}/{trade.IV_DEF}/{trade.IV_SPA}/{trade.IV_SPD}/{trade.IV_SPE}";
+                    if (trade.EVTotal != 0)
+                        embedMsg += $"\n**EVs**: {trade.EV_HP}/{trade.EV_ATK}/{trade.EV_DEF}/{trade.EV_SPA}/{trade.EV_SPD}/{trade.EV_SPE}";
+                    embedMsg += $"\n**__Moves__**";
+                    if (trade.Move1 != 0)
+                        embedMsg += $"\n- {(Move)trade.Move1}";
+                    if (trade.Move2 != 0)
+                        embedMsg += $"\n- {(Move)trade.Move2}";
+                    if (trade.Move3 != 0)
+                        embedMsg += $"\n- {(Move)trade.Move3}";
+                    if (trade.Move4 != 0)
+                        embedMsg += $"\n- {(Move)trade.Move4}";
+                    if (trade.EncryptionConstant == 0)
+                        embedMsg += $"\n### :bangbang: **Pokémon generated with 0 EC** :bangbang:";
+                    if (botversion == "PK9")
+                    {
+                        PK9 tradesv = (PK9)(PKM)trade;
+                        if (trade.Generation != 9 && tradesv.Tracker == 0 && !trade.IsEgg)
+                            embedMsg += $"\n## :bangbang: **Pokémon has NO HOME Tracker** :bangbang:\n\n";
+                    }
+                    embedMsg += $"\n\n{trader.Mention} - Added to the LinkTrade queue";
+
+                    EmbedAuthorBuilder embedAuthorBuild = new()
+                    {
+                        IconUrl = "https://raw.githubusercontent.com/PhantomL98/HomeImages/main/Ballimg/50x50/" + ((Ball)trade.Ball).ToString().ToLower() + "ball.png",
+                        Name = embedAuthor,
+                    };
+                    EmbedFooterBuilder embedFtr = new()
+                    {
+                        Text = $"Current Position: " + SysCord<T>.Runner.Hub.Queues.Info.Count.ToString() + ".\nEstimated Wait: " + Math.Round(((SysCord<T>.Runner.Hub.Queues.Info.Count) * 1.65), 1).ToString() + " minutes.",
+                        IconUrl = "https://raw.githubusercontent.com/PhantomL98/HomeImages/main/Sprites/200x200/poke_capture_0363_000_mf_n_00000000_f_n.png"
+                    };
+
+                    Color embedMsgColor = new((uint)Enum.Parse(typeof(EmbedColor), Enum.GetName(typeof(Ball), trade.Ball)));
+                    Roshicl tradespheal = new();
+                    string embedThumbUrl = await tradespheal.EmbedImgUrlBuilder(trade, CanGMax, FormArgument.ToString("00000000")).ConfigureAwait(false);
+
+                    EmbedBuilder builder = new()
+                    {
+                        //Optional color
+                        Color = embedMsgColor,
+                        Author = embedAuthorBuild,
+                        Title = embedTitle,
+                        Description = embedMsg,
+                        ThumbnailUrl = embedThumbUrl,
+                        Footer = embedFtr
+                    };
+                    await context.Channel.SendMessageAsync("", false, builder.Build()).ConfigureAwait(false);
+                }
+
                 // Notify in PM to mirror what is said in the channel.
                 await trader.SendMessageAsync($"{msg}\nYour trade code will be **{code:0000 0000}**.").ConfigureAwait(false);
 
@@ -85,8 +306,8 @@ namespace SysBot.Pokemon.Discord
 
             var pokeName = "";
             if (t == PokeTradeType.Specific && pk.Species != 0)
-                pokeName = $" Receiving: {(Species)pk.Species}.";
-            msg = $"{user.Mention} - Added to the {type} queue{ticketID}. Current Position: {position.Position}.{pokeName}";
+                pokeName = $" Receiving: {GameInfo.GetStrings(1).Species[pk.Species]}.";
+            msg = $"I've added you to the queue, {user.Mention}!\r\nCurrent Position: {position.Position}.{pokeName}";
 
             var botct = Info.Hub.Bots.Count;
             if (position.Position > botct)

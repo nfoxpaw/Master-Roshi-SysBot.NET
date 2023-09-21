@@ -21,6 +21,9 @@ namespace SysBot.Pokemon
         [Category(Distribute), Description("When set to something other than None, the Random Trades will require this species in addition to the nickname match.")]
         public Species LedySpecies { get; set; } = Species.None;
 
+        [Category(Distribute), Description("Display Google Sheets Link for Nicknames used in Direct Trades")]
+        public string SheetLink { get; set; } = "Input Link under BotTrade > Custom Swaps";
+
         [Category(Distribute), Description("When set to true, Random Ledy nickname-swap trades will quit rather than trade a random entity from the pool.")]
         public bool LedyQuitIfNoMatch { get; set; }
 
