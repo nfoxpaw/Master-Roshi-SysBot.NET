@@ -9,7 +9,7 @@ namespace SysBot.Pokemon.Discord
         [Summary("Directs you to the info thread")]
         public async Task PingAsync()
         {
-            await ReplyAsync("Read <#1090060306044170290> for help").ConfigureAwait(false);
+            await ReplyAsync("Read <#1115122854376247356> for help").ConfigureAwait(false);
         }
     }
 }

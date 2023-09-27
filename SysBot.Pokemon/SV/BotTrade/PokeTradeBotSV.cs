@@ -343,7 +343,7 @@ namespace SysBot.Pokemon
             var trainerNID = await GetTradePartnerNID(TradePartnerNIDOffset, token).ConfigureAwait(false);                        
             RecordUtil<PokeTradeBot>.Record($"Initiating\t{trainerNID:X16}\t{tradePartner.TrainerName}\t{poke.Trainer.TrainerName}\t{poke.Trainer.ID}\t{poke.ID}\t{toSend.EncryptionConstant:X8}");
             //Log Trainer info block
-            var msgY = $"```OT: {tradePartner.TrainerName}\rTID: {tradePartner.TID7}\rSID: {tradePartner.SID7}\rOTGender: {(Gender)tradePartner.Gender}```";
+            var msgY = $"```OT: {tradePartner.TrainerName}\rTID: {tradePartner.TID7}\rSID: {tradePartner.SID7}\rOTGender: {(Gender)tradePartner.Gender}\rLanguage: {(LanguageID)tradePartner.Language}\rGame: {(GameVersion)tradePartner.Game}```";
             var msgZ = $"```OT: {tradePartner.TrainerName}\rTID: {tradePartner.TID7}\rSID: {tradePartner.SID7}\rOTGender: {(Gender)tradePartner.Gender}\rLanguage: {(LanguageID)tradePartner.Language}\rGame: {(GameVersion)tradePartner.Game}\rNID: {trainerNID}```";
             Log($"Found Link Trade partner: {tradePartner.TrainerName}-{tradePartner.TID7} (ID: {trainerNID})\r{msgZ}");
 
@@ -409,9 +409,74 @@ namespace SysBot.Pokemon
                 return update;
             }
 
+            //Block creation of Showdown sets and PK9s that are missing required HOME Trackers
+            //Non-native SV species and region-locked evos
+            //Block creation of files without an Encryption Constant (excluding OG Magearna)
+            if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.LinkSV || poke.Type == PokeTradeType.Specific || poke.Type == PokeTradeType.Clone)
+            {
+                bool SentSV = false;
+                bool EvoTree = false;
+                bool NullEC = false;
+                var HomeTracker = Convert.ToInt64(toSend.Tracker);
+                var nullValue = Convert.ToInt64(0000000000000000);
+                var null32 = Convert.ToUInt32(00000000);
+                var ver = toSend.Version;
+                var SpeciesOut = toSend.Species;
+                var ECOut = Convert.ToUInt32(toSend.EncryptionConstant);
+
+                var Evo1 = new List<ushort>
+                {
+                    (ushort)Species.Wyrdeer,
+                    (ushort)Species.Ursaluna,
+                    (ushort)Species.Kleavor,
+                    (ushort)Species.Overqwil,
+                };
+
+                var Evo2 = new List<ushort>
+                {
+                    (ushort)Species.Typhlosion,
+                    (ushort)Species.Samurott,
+                    (ushort)Species.Sliggoo,
+                    (ushort)Species.Goodra,
+                    (ushort)Species.Slowbro,
+                    (ushort)Species.Slowking,
+                    (ushort)Species.Lilligant,
+                    (ushort)Species.Avalugg,
+                    (ushort)Species.Decidueye,
+                    (ushort)Species.Braviary,
+                };
+
+                if (ver == 50 || ver == 51 || ver == 0)
+                    SentSV = true;
+                if (SpeciesOut != 0 && Evo1.Contains(SpeciesOut))
+                    EvoTree = true;
+                if (SpeciesOut != 0 && Evo2.Contains(SpeciesOut) && toSend.Form != 0)
+                    EvoTree = true;
+                if (ECOut == null32)
+                    NullEC = true;
+                var msg2 = "https://tenor.com/view/avatar-the-last-air-bender-joo-dee-smile-happy-gif-17283492";
+                if ((HomeTracker == nullValue && SentSV == false) || (HomeTracker == nullValue && SentSV == true && EvoTree == true))
+                {
+                    var msg0 = $"Found {tradePartner.TrainerName} attempting to create a {GameInfo.GetStrings(1).Species[toSend.Species]} without a valid HOME Tracker!";
+                    EchoUtil.Echo(msg2);
+                    EchoUtil.Echo(msg0);
+                    await ExitTradeToPortal(false, token).ConfigureAwait(false);
+                    return PokeTradeResult.IllegalTrade;
+                }
+                if ((NullEC == true && SpeciesOut != 801) || (NullEC == true && SpeciesOut == 801 && toSend.Form != 1))
+                {
+                    var msg1 = $"Found {tradePartner.TrainerName} attempting to create a {GameInfo.GetStrings(1).Species[toSend.Species]} with an Encryption Constant of 00000000!";
+                    EchoUtil.Echo(msg2);
+                    EchoUtil.Echo(msg1);
+                    await ExitTradeToPortal(false, token).ConfigureAwait(false);
+                    return PokeTradeResult.IllegalTrade;
+                }
+
+            }
+
             if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.LinkSV)
             {
-                Log($"Trainer request is nicknamed {offered.Nickname} ({GameInfo.GetStrings(1).Species[toSend.Species]}).");
+                Log($"Request from {tradePartner.TrainerName} is nicknamed {offered.Nickname} ({GameInfo.GetStrings(1).Species[toSend.Species]}).");
             }
 
             Log("Confirming trade.");
@@ -446,6 +511,17 @@ namespace SysBot.Pokemon
 
             // Only log if we completed the trade.
             UpdateCountsAndExport(poke, received, toSend);
+
+            //Log updated distro counts
+            var DistroCount = TradeSettings.CompletedDistribution;
+            if (poke.Type == PokeTradeType.Random || poke.Type == PokeTradeType.LinkSV)
+                Log($"Distribution trades count: {DistroCount}");
+            
+            //Post-trade extras
+            if (DistroCount == 60000)
+                EchoUtil.Echo($"<@1033905774268780645> 60000th trade reached!");
+            if (toSend.Nickname == "Skill Issue" && toSend.Species == (ushort)Species.Haunter)
+                EchoUtil.Echo("https://tenor.com/view/frieza-skill-issue-gif-20518554");
 
             // Sometimes they offered another mon, so store that immediately upon leaving Union Room.
             lastOffered = await SwitchConnection.ReadBytesAbsoluteAsync(TradePartnerOfferedOffset, 8, token).ConfigureAwait(false);

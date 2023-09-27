@@ -5,6 +5,9 @@ using Discord;
 using System;
 using System.IO;
 using System.Threading;
+using System.ComponentModel.Design;
+using System.Linq;
+using SysBot.Base;
 
 namespace SysBot.Pokemon.Discord
 {
@@ -16,7 +19,7 @@ namespace SysBot.Pokemon.Discord
         [Command("directTrade")]
         [Alias("drt", "rsv")]
         [Summary("Starts a Distribution Trade through Discord")]
-        [RequireQueueRole(nameof(DiscordManager.RolesTrade))]
+        [RequireQueueRole(nameof(DiscordManager.RolesDirTrade))]
         public async Task DRT()
         {
             var code = Info.GetRandomTradeCode();
@@ -47,7 +50,7 @@ namespace SysBot.Pokemon.Discord
         [Command("directTrade")]
         [Alias("drt", "rsv")]
         [Summary("Starts a Distribution Trade through Discord")]
-        [RequireQueueRole(nameof(DiscordManager.RolesTrade))]
+        [RequireQueueRole(nameof(DiscordManager.RolesDirTrade))]
         public async Task DRT([Summary("Trade Code")] int code)
         {
             var sig = Context.User.GetFavor();
@@ -77,7 +80,7 @@ namespace SysBot.Pokemon.Discord
         [Command("DTList")]
         [Alias("dtl")]
         [Summary("List the users in the DirectTrade queue.")]
-        [RequireQueueRole(nameof(DiscordManager.RolesTrade))]
+        [RequireQueueRole(nameof(DiscordManager.RolesDirTrade))]
         public async Task GetDTListAsync()
         {
             string msg = Info.GetTradeList(PokeRoutineType.DirectTrade);
@@ -91,6 +94,16 @@ namespace SysBot.Pokemon.Discord
             await ReplyAsync("These are the users who are currently waiting:", embed: embed.Build()).ConfigureAwait(false);
         }
 
-
+        [Command("cabbages")]
+        [Alias("mycabbages")]
+        [Summary("Causes the entire process to end itself!")]
+        [RequireOwner]
+        // Terminates program immediately without updating config.json
+        public async Task ExitProgram2()
+        {
+            await Context.Channel.EchoAndReply("https://tenor.com/view/avatar-cabbages-gif-5990800").ConfigureAwait(false);
+            await Context.Channel.EchoAndReply("Shutting down... goodbye! **Bot services are going offline.**").ConfigureAwait(false);
+            Environment.Exit(0);
+        }                
     }
 }
