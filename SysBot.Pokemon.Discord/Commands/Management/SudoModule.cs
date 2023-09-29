@@ -5,13 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Discord;
-using PKHeX.Core;
-using SysBot.Base;
 
 namespace SysBot.Pokemon.Discord
 {
-    public class SudoModule : ModuleBase<SocketCommandContext>
+    public class SudoModule<T> : ModuleBase<SocketCommandContext> where T : PKM, new()
     {
         [Command("blacklist")]
         [Summary("Blacklists a mentioned Discord user.")]
@@ -98,7 +95,7 @@ namespace SysBot.Pokemon.Discord
             var me = SysCord<T>.Runner;
             var hub = me.Hub;
             hub.Config.TradeAbuse.BannedIDs.AddIfNew(objects);
-            await ReplyAsync("Done.").ConfigureAwait(false);
+            await ReplyAsync("https://tenor.com/view/bane-no-banned-and-you-are-explode-gif-16047504").ConfigureAwait(false);
         }
 
         [Command("bannedIDComment")]
