@@ -98,7 +98,6 @@ namespace SysBot.Pokemon
             Time = DateTime.Now;
         }
     }
-
     public class CooldownTracker
     {
         private const int Capacity = 1000;
@@ -113,7 +112,7 @@ namespace SysBot.Pokemon
         }
 
         public int TryInsert(ulong id, string name, bool reset = false)
-        {            
+        {
             var user = TryGetPrevious(id);
             if (user == null)
             {
