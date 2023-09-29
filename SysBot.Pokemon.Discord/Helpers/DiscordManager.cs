@@ -17,6 +17,7 @@ namespace SysBot.Pokemon.Discord
         public RemoteControlAccessList FavoredRoles => Config.RoleFavored;
 
         public RemoteControlAccessList RolesClone => Config.RoleCanClone;
+        public RemoteControlAccessList RolesDirTrade => Config.RoleCanDirTrade;
         public RemoteControlAccessList RolesTrade => Config.RoleCanTrade;
         public RemoteControlAccessList RolesSeed => Config.RoleCanSeedCheck;
         public RemoteControlAccessList RolesDump => Config.RoleCanDump;
@@ -53,6 +54,7 @@ namespace SysBot.Pokemon.Discord
         {
             nameof(RolesClone) => RolesClone,
             nameof(RolesTrade) => RolesTrade,
+            nameof(RolesDirTrade) => RolesDirTrade,
             nameof(RolesSeed) => RolesSeed,
             nameof(RolesDump) => RolesDump,
             nameof(RolesRemoteControl) => RolesRemoteControl,

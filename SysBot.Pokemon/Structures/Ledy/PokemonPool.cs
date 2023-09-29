@@ -46,7 +46,24 @@ namespace SysBot.Pokemon
                 return rand;
             }
         }
-
+        public T GetRandomTrade()
+        {
+            while (true)
+            {
+                var rand = GetRandomTradeSend();
+                if (DisallowRandomRecipientTrade(rand))
+                    continue;
+                return rand;
+            }
+        }
+        public T GetRandomTradeSend()
+        {
+            var choice = this[Counter];
+            Counter = (Counter + 1) % Count;
+            if (Randomized)
+                Shuffle(this, 0, Count, Util.Rand);
+            return choice;
+        }
         public bool Reload(string path, SearchOption opt = SearchOption.AllDirectories)
         {
             if (!Directory.Exists(path))
@@ -100,7 +117,7 @@ namespace SysBot.Pokemon
 
                 if (DisallowRandomRecipientTrade(dest, la.EncounterMatch))
                 {
-                    /*LogUtil.LogInfo("Provided file was loaded but can't be Surprise Traded: " + dest.FileName, nameof(PokemonPool<T>));*/
+                    //LogUtil.LogInfo("Provided file was loaded but can't be Surprise Traded: " + dest.FileName, nameof(PokemonPool<T>));
                     surpriseBlocked++;
                 }
 
@@ -140,7 +157,7 @@ namespace SysBot.Pokemon
         private static bool DisallowRandomRecipientTrade(T pk, IEncounterTemplate enc)
         {
             // Anti-spam
-            if (pk.IsNicknamed && enc is not EncounterTrade {IsNicknamed: true} && pk.Nickname.Length > 6)
+            if (pk.IsNicknamed && enc is not IFixedNickname { IsFixedNickname: true } && pk.Nickname.Length > 6)
                 return true;
 
             // Anti-spam

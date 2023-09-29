@@ -9,7 +9,7 @@ namespace SysBot.Pokemon.Discord
         [Summary("Makes the bot respond, indicating that it is running.")]
         public async Task PingAsync()
         {
-            await ReplyAsync("I'm awake, shut up.").ConfigureAwait(false);
+            await ReplyAsync("https://i.pinimg.com/originals/f4/61/f9/f461f95baef69078742a859aa86beaab.gif").ConfigureAwait(false);
         }
     }
 }

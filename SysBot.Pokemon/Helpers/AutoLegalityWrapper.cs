@@ -1,7 +1,8 @@
-﻿using System;
-using PKHeX.Core;
+﻿using PKHeX.Core;
 using PKHeX.Core.AutoMod;
+using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace SysBot.Pokemon
@@ -21,25 +22,33 @@ namespace SysBot.Pokemon
         private static void InitializeAutoLegality(LegalitySettings cfg)
         {
             InitializeCoreStrings();
-            if (!EncounterEvent.Initialized)
-                EncounterEvent.RefreshMGDB(cfg.MGDBPath);
+            EncounterEvent.RefreshMGDB(cfg.MGDBPath);
             InitializeTrainerDatabase(cfg);
             InitializeSettings(cfg);
         }
+
+        // The list of encounter types in the priority we prefer if no order is specified.
+        private static readonly EncounterTypeGroup[] EncounterPriority = { EncounterTypeGroup.Egg, EncounterTypeGroup.Slot, EncounterTypeGroup.Static, EncounterTypeGroup.Mystery, EncounterTypeGroup.Trade };
 
         private static void InitializeSettings(LegalitySettings cfg)
         {
             APILegality.SetAllLegalRibbons = cfg.SetAllLegalRibbons;
             APILegality.SetMatchingBalls = cfg.SetMatchingBalls;
             APILegality.ForceSpecifiedBall = cfg.ForceSpecifiedBall;
-            APILegality.UseXOROSHIRO = cfg.UseXOROSHIRO;
+            APILegality.ForceLevel100for50 = cfg.ForceLevel100for50;
             Legalizer.EnableEasterEggs = cfg.EnableEasterEggs;
             APILegality.AllowTrainerOverride = cfg.AllowTrainerDataOverride;
             APILegality.AllowBatchCommands = cfg.AllowBatchCommands;
             APILegality.PrioritizeGame = cfg.PrioritizeGame;
-            APILegality.PrioritizeGameVersion= cfg.PrioritizeGameVersion;
+            APILegality.PrioritizeGameVersion = cfg.PrioritizeGameVersion;
             APILegality.SetBattleVersion = cfg.SetBattleVersion;
             APILegality.Timeout = cfg.Timeout;
+
+            // We need all the encounter types present, so add the missing ones at the end.
+            var missing = EncounterPriority.Except(cfg.PrioritizeEncounters);
+            cfg.PrioritizeEncounters.AddRange(missing);
+            cfg.PrioritizeEncounters = cfg.PrioritizeEncounters.Distinct().ToList(); // Don't allow duplicates.
+            EncounterMovesetGenerator.PriorityList = cfg.PrioritizeEncounters;
         }
 
         private static void InitializeTrainerDatabase(LegalitySettings cfg)
@@ -96,11 +105,14 @@ namespace SysBot.Pokemon
 
         public static bool IsFixedOT(IEncounterTemplate t, PKM pkm) => t switch
         {
-            EncounterTrade tr => tr.HasTrainerName,
+            IFixedTrainer { IsFixedTrainer: true } tr => true,
             MysteryGift g => !g.EggEncounter && g switch
             {
-                WC8 wc8 => wc8.GetHasOT(pkm.Language),
+                WC9 wc9 => wc9.GetHasOT(pkm.Language),
+                WA8 wa8 => wa8.GetHasOT(pkm.Language),
                 WB8 wb8 => wb8.GetHasOT(pkm.Language),
+                WC8 wc8 => wc8.GetHasOT(pkm.Language),
+                WB7 wb7 => wb7.GetHasOT(pkm.Language),
                 { Generation: >= 5 } gift => gift.OT_Name.Length > 0,
                 _ => true,
             },

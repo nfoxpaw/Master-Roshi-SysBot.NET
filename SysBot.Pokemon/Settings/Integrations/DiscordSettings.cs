@@ -37,6 +37,9 @@ namespace SysBot.Pokemon
 
         // Whitelists
 
+        [Category(Roles), Description("Users with this role are allowed to enter the DirectTrade queue.")]
+        public RemoteControlAccessList RoleCanDirTrade { get; set; } = new() { AllowIfEmpty = false };
+
         [Category(Roles), Description("Users with this role are allowed to enter the Trade queue.")]
         public RemoteControlAccessList RoleCanTrade { get; set; } = new() { AllowIfEmpty = false };
 
