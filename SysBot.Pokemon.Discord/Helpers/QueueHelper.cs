@@ -136,7 +136,7 @@ namespace SysBot.Pokemon.Discord
                             embedMsg += $"Nickname/Features trade using [**Click for Nicknames**](<{SysCordSettings.HubConfig.Distribution.SheetLink}>)\n";
                             embedMsg += $"Game: **{gamever}**\n";
                             embedMsg += $"Cooldown: **{cd}** mins\n\n";
-                            embedMsg += $"Commands:\n**{p}rsv**, **{p}rme**, **{p}t**, **{p}it**, **{p}tc**, **{p}dump**, **{p}clone**, **{p}checkcd**, **{p}dtl**, **{p}spf**\n";
+                            embedMsg += $"Commands:\n**{p}rsv**, **{p}t**, **{p}it**, **{p}tc**, **{p}dump**, **{p}clone**, **{p}dtl**\n";
                             embedMsg += $"Enjoy trading !";
                         }
                     }
@@ -307,7 +307,7 @@ namespace SysBot.Pokemon.Discord
             var pokeName = "";
             if (t == PokeTradeType.Specific && pk.Species != 0)
                 pokeName = $" Receiving: {GameInfo.GetStrings(1).Species[pk.Species]}.";
-            msg = $"I've added you to the queue, {user.Mention}!\r\nCurrent Position: {position.Position}.{pokeName}";
+            msg = $"{user.Mention} - Added to the {type} queue{ticketID}. Current Position: {position.Position}.{pokeName}";
 
             var botct = Info.Hub.Bots.Count;
             if (position.Position > botct)

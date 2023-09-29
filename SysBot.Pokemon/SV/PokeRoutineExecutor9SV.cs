@@ -3,10 +3,10 @@ using SysBot.Base;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
-using static SysBot.Pokemon.PokeDataOffsetsSV;
+using System.Threading.Tasks;
 using static SysBot.Base.SwitchButton;
+using static SysBot.Pokemon.PokeDataOffsetsSV;
 
 namespace SysBot.Pokemon
 {
@@ -89,7 +89,11 @@ namespace SysBot.Pokemon
             InitSaveData(sav);
 
             if (!IsValidTrainerData())
-                throw new Exception("Trainer data is not valid. Refer to the SysBot.NET wiki (https://github.com/kwsch/SysBot.NET/wiki/Troubleshooting) to fix this error.");
+            {
+                await CheckForRAMShiftingApps(token).ConfigureAwait(false);
+                throw new Exception("Refer to the SysBot.NET wiki (https://github.com/kwsch/SysBot.NET/wiki/Troubleshooting) for more information.");
+            }
+
             if (await GetTextSpeed(token).ConfigureAwait(false) < TextSpeedOption.Fast)
                 throw new Exception("Text speed should be set to FAST. Fix this for correct operation.");
 
@@ -242,18 +246,18 @@ namespace SysBot.Pokemon
             return await IsOnOverworld(offset, token).ConfigureAwait(false);
         }
 
-        // Usually 0x9-0xA if fully loaded into Poké Portal.
+        // 0x10 if fully loaded into Poké Portal.
         public async Task<bool> IsInPokePortal(ulong offset, CancellationToken token)
         {
             var data = await SwitchConnection.ReadBytesAbsoluteAsync(offset, 1, token).ConfigureAwait(false);
-            return data[0] >= 9;
+            return data[0] == 0x10;
         }
 
-        // Usually 4-6 in a box.
+        // 0x14 in a box and during trades, trade evolutions, and move learning.
         public async Task<bool> IsInBox(ulong offset, CancellationToken token)
         {
             var data = await SwitchConnection.ReadBytesAbsoluteAsync(offset, 1, token).ConfigureAwait(false);
-            return data[0] < 8;
+            return data[0] == 0x14;
         }
 
         public async Task<TextSpeedOption> GetTextSpeed(CancellationToken token)

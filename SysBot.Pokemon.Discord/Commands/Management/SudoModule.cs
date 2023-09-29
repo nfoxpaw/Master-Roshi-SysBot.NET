@@ -1,4 +1,6 @@
-﻿using Discord.Commands;
+﻿using Discord;
+using Discord.Commands;
+using PKHeX.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,94 +11,10 @@ using SysBot.Base;
 
 namespace SysBot.Pokemon.Discord
 {
-    public class SudoModule<T> : ModuleBase<SocketCommandContext> where T : PKM, new()
+    public class SudoModule : ModuleBase<SocketCommandContext>
     {
-        [Command("ledyspecies")]
-        [Alias("ls")]
-        [Summary("Changes the Ledy species for idle distribution.")]
-        [RequireSudo]
-        public async Task ChangeLedySpecies([Remainder] string input)
-        {
-            if (input.ToLower() == "none")
-            {
-                SysCordSettings.HubConfig.Distribution.LedySpecies = (ushort)Species.None;
-                await ReplyAsync("LedySpecies has been changed to None.").ConfigureAwait(false);
-                EchoUtil.Echo("LedySpecies has been changed to None.");
-                return;
-            }
-            bool isSpecies = Enum.TryParse(input, true, out Species result);
-            if (!isSpecies)
-            {
-                await ReplyAsync("Please enter a valid Species.").ConfigureAwait(false);
-                return;
-            }
-            var mode = typeof(T).ToString();
-            IPersonalTable infoTable = mode switch
-            {
-                "PK9" => PersonalTable.SV,
-                "PK8" => PersonalTable.SWSH,
-                "PA8" => PersonalTable.LA,
-                "PB8" => PersonalTable.BDSP,
-                _ => PersonalTable.SV
-            };
-            bool isInGame = infoTable.IsSpeciesInGame((ushort)result);
-            if (!isInGame)
-            {
-                await ReplyAsync("Please enter a Species available in the current game.").ConfigureAwait(false);
-                return;
-            }
-            else
-            {
-                SysCordSettings.HubConfig.Distribution.LedySpecies = result;
-                await ReplyAsync($"LedySpecies has been changed to {result}.").ConfigureAwait(false);
-                EchoUtil.Echo($"LedySpecies has been changed to {result}.");
-            }
-        }
-
-        /*[Command("metlocation")]
-        [Alias("ml")]
-        [Summary("Changes the required Met Location for TradeMon.")]
-        [RequireSudo]
-        public async Task ChangeMetLocation([Remainder] string input)
-        {
-            if (input.ToLower() == "none")
-            {
-                SysCordSettings.HubConfig.TradeAbuse.OfferedMetLocation = string.Empty;
-                await ReplyAsync("Met Location has been changed to None.").ConfigureAwait(false);
-                EchoUtil.Echo("Met Location has been changed to None.");
-                return;
-            }
-                        
-            else
-            {
-                SysCordSettings.HubConfig.TradeAbuse.OfferedMetLocation = input;
-                await ReplyAsync($"Met Location has been changed to {input}.").ConfigureAwait(false);
-                EchoUtil.Echo($"Met Location has been changed to {input}.");
-            }
-        }*/
-
-        [Command("cooldown")]
-        [Summary("Changes cooldown in minutes.")]
-        [Alias("cd")]
-        [RequireSudo]
-        public async Task UpdateCooldown([Remainder] string input)
-        {
-            bool res = uint.TryParse(input, out var cooldown);
-            if (res)
-            {
-                SysCordSettings.HubConfig.TradeAbuse.TradeCooldown = cooldown;
-                SysCordSettings.HubConfig.TradeAbuse.CooldownUpdate = $"{DateTime.Now:yyyy.MM.dd - HH:mm:ss}";
-                await ReplyAsync($"Cooldown has been updated to {cooldown} minutes.").ConfigureAwait(false);
-                return;
-            }
-            else
-            {
-                await ReplyAsync("Please enter a valid number of minutes.").ConfigureAwait(false);
-            }
-        }
-
         [Command("blacklist")]
-        [Summary("Blacklists mentioned user.")]
+        [Summary("Blacklists a mentioned Discord user.")]
         [RequireSudo]
         // ReSharper disable once UnusedParameter.Global
         public async Task BlackListUsers([Remainder] string _)
@@ -108,7 +26,7 @@ namespace SysBot.Pokemon.Discord
         }
 
         [Command("blacklistComment")]
-        [Summary("Adds a comment for a blacklisted user ID.")]
+        [Summary("Adds a comment for a blacklisted Discord user ID.")]
         [RequireSudo]
         // ReSharper disable once UnusedParameter.Global
         public async Task BlackListUsers(ulong id, [Remainder] string comment)
@@ -126,7 +44,7 @@ namespace SysBot.Pokemon.Discord
         }
 
         [Command("unblacklist")]
-        [Summary("Un-Blacklists mentioned user.")]
+        [Summary("Removes a mentioned Discord user from the blacklist.")]
         [RequireSudo]
         // ReSharper disable once UnusedParameter.Global
         public async Task UnBlackListUsers([Remainder] string _)
@@ -138,7 +56,7 @@ namespace SysBot.Pokemon.Discord
         }
 
         [Command("blacklistId")]
-        [Summary("Blacklists IDs. (Useful if user is not in the server).")]
+        [Summary("Blacklists Discord user IDs. (Useful if user is not in the server).")]
         [RequireSudo]
         public async Task BlackListIDs([Summary("Comma Separated Discord IDs")][Remainder] string content)
         {
@@ -149,7 +67,7 @@ namespace SysBot.Pokemon.Discord
         }
 
         [Command("unBlacklistId")]
-        [Summary("Un-Blacklists IDs. (Useful if user is not in the server).")]
+        [Summary("Removes Discord user IDs from the blacklist. (Useful if user is not in the server).")]
         [RequireSudo]
         public async Task UnBlackListIDs([Summary("Comma Separated Discord IDs")][Remainder] string content)
         {
@@ -160,13 +78,116 @@ namespace SysBot.Pokemon.Discord
 
         [Command("blacklistSummary")]
         [Alias("printBlacklist", "blacklistPrint")]
-        [Summary("Prints the list of blacklisted users.")]
+        [Summary("Prints the list of blacklisted Discord users.")]
         [RequireSudo]
         public async Task PrintBlacklist()
         {
             var lines = SysCordSettings.Settings.UserBlacklist.Summarize();
             var msg = string.Join("\n", lines);
             await ReplyAsync(Format.Code(msg)).ConfigureAwait(false);
+        }
+
+        [Command("banID")]
+        [Summary("Bans online user IDs.")]
+        [RequireSudo]
+        public async Task BanOnlineIDs([Summary("Comma Separated Online IDs")][Remainder] string content)
+        {
+            var IDs = GetIDs(content);
+            var objects = IDs.Select(GetReference);
+
+            var me = SysCord<T>.Runner;
+            var hub = me.Hub;
+            hub.Config.TradeAbuse.BannedIDs.AddIfNew(objects);
+            await ReplyAsync("Done.").ConfigureAwait(false);
+        }
+
+        [Command("bannedIDComment")]
+        [Summary("Adds a comment for a banned online user ID.")]
+        [RequireSudo]
+        public async Task BanOnlineIDs(ulong id, [Remainder] string comment)
+        {
+            var me = SysCord<T>.Runner;
+            var hub = me.Hub;
+            var obj = hub.Config.TradeAbuse.BannedIDs.List.Find(z => z.ID == id);
+            if (obj is null)
+            {
+                await ReplyAsync($"Unable to find a user with that online ID ({id}).").ConfigureAwait(false);
+                return;
+            }
+
+            var oldComment = obj.Comment;
+            obj.Comment = comment;
+            await ReplyAsync($"Done. Changed existing comment ({oldComment}) to ({comment}).").ConfigureAwait(false);
+        }
+
+        [Command("unbanID")]
+        [Summary("Bans online user IDs.")]
+        [RequireSudo]
+        public async Task UnBanOnlineIDs([Summary("Comma Separated Online IDs")][Remainder] string content)
+        {
+            var IDs = GetIDs(content);
+            var objects = IDs.Select(GetReference);
+
+            var me = SysCord<T>.Runner;
+            var hub = me.Hub;
+            hub.Config.TradeAbuse.BannedIDs.RemoveAll(z => IDs.Any(o => o == z.ID));
+            await ReplyAsync("Done.").ConfigureAwait(false);
+        }
+
+        [Command("bannedIDSummary")]
+        [Alias("printBannedID", "bannedIDPrint")]
+        [Summary("Prints the list of banned online IDs.")]
+        [RequireSudo]
+        public async Task PrintBannedOnlineIDs()
+        {
+            var me = SysCord<T>.Runner;
+            var hub = me.Hub;
+            var lines = hub.Config.TradeAbuse.BannedIDs.Summarize();
+            var msg = string.Join("\n", lines);
+            await ReplyAsync(Format.Code(msg)).ConfigureAwait(false);
+        }
+
+        [Command("forgetUser")]
+        [Alias("forget")]
+        [Summary("Forgets users that were previously encountered.")]
+        [RequireSudo]
+        public async Task ForgetPreviousUser([Summary("Comma Separated Online IDs")][Remainder] string content)
+        {
+            var IDs = GetIDs(content);
+            var objects = IDs.Select(GetReference);
+
+            foreach (var ID in IDs)
+            {
+                PokeRoutineExecutorBase.PreviousUsers.RemoveAllNID(ID);
+                PokeRoutineExecutorBase.PreviousUsersDistribution.RemoveAllNID(ID);
+            }
+            await ReplyAsync("Done.").ConfigureAwait(false);
+        }
+
+        [Command("previousUserSummary")]
+        [Alias("prevUsers")]
+        [Summary("Prints a list of previously encountered users.")]
+        [RequireSudo]
+        public async Task PrintPreviousUsers()
+        {
+            bool found = false;
+            var lines = PokeRoutineExecutorBase.PreviousUsers.Summarize();
+            if (lines.Any())
+            {
+                found = true;
+                var msg = "Previous Users:\n" + string.Join("\n", lines);
+                await ReplyAsync(Format.Code(msg)).ConfigureAwait(false);
+            }
+
+            lines = PokeRoutineExecutorBase.PreviousUsersDistribution.Summarize();
+            if (lines.Any())
+            {
+                found = true;
+                var msg = "Previous Distribution Users:\n" + string.Join("\n", lines);
+                await ReplyAsync(Format.Code(msg)).ConfigureAwait(false);
+            }
+            if (!found)
+                await ReplyAsync("No previous users found.").ConfigureAwait(false);
         }
 
         private RemoteControlAccess GetReference(IUser channel) => new()
